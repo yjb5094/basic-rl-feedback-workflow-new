@@ -1,0 +1,35 @@
+# System build tools
+build-essential
+curl
+git
+cmake
+ninja-build
+python3
+python3-pip
+
+# LLVM/Clang toolchain
+llvm-14
+llvm-14-dev
+clang-14
+llvm-14-tools
+
+# Symbolic execution and solver support
+z3
+libz3-dev
+
+# Optional solver STP (not used here)
+# libstp-dev
+
+# C library for symbolic execution
+bison
+flex
+libcap-dev
+
+# Optional runtime performance
+zlib1g-dev
+libtcmalloc-minimal4
+
+# KLEE-specific
+libsqlite3-dev
+doxygen
+pkg-config
