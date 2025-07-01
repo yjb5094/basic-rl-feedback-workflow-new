@@ -20,3 +20,6 @@ def collect_errors(feedback_dir, klee_dir, output_dir):
                 for err_file in err_files:
                     with open(err_file) as ef:
                         out.write(ef.read())
+# This is a test-code created to initially parse errors from KLEE and the compiler.
+# This snippet can be used in the final reward calculation script, but as is, it just
+# has a function to read klee output and provide feedback in form of txt in feedback folder.
