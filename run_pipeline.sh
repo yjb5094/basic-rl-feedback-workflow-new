@@ -56,23 +56,8 @@ echo "Step 2: Running security and symbolic execution analysis..."
 # Clean up previous analysis
 rm -rf klee_output
 
-# Clean the generated code (remove any markdown or explanations if present)
-if grep -q '```c' generated_code/generated_code.c; then
-    # Extract code between ```c and ``` markers
-    sed -n '/```c/,/```/p' generated_code/generated_code.c | sed '1d;$d' > generated_code/clean_code.c
-else
-    # If no markdown, just copy the file
-    cp generated_code/generated_code.c generated_code/clean_code.c
-fi
-
-# Remove any remaining non-C text (lines that don't look like C code)
-sed -i '/^[A-Z][a-z].*[^;{}]$/d' generated_code/clean_code.c
-sed -i '/^Here.*:/d' generated_code/clean_code.c
-sed -i '/^This.*:/d' generated_code/clean_code.c
-sed -i '/^The.*:/d' generated_code/clean_code.c
-sed -i '/^\/\*$/,/^\*\//d' generated_code/clean_code.c
-# Remove duplicate return statements (keep only the last one before closing brace)
-awk '/return 0;/{if(seen) next; seen=1} !/return 0;/{seen=0} 1' generated_code/clean_code.c > generated_code/temp_clean.c && mv generated_code/temp_clean.c generated_code/clean_code.c
+# Clean the generated code to remove markdown and explanatory text
+python3 clean_code.py generated_code/generated_code.c generated_code/clean_code.c
 
 echo "✓ Clean C code prepared: generated_code/clean_code.c"
 

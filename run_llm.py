@@ -88,10 +88,6 @@ generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
 # Extract just the new content (remove the prompt)
 code = generated_text[len(prompt_text):].strip()
 
-# Complete the main function if it's incomplete
-if not code.endswith('}'):
-    code += "\n    return 0;\n}"
-
 # Add the full program structure
 full_code = f"{prompt_text}{code}"
 
