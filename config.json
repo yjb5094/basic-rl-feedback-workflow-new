@@ -1,7 +1,7 @@
 {
-	"MODEL_PATH":"deepseek-ai/deepseek-coder-1.3b-instruct",
-	"max_new_tokens": 512,
-	"num_return_sequences" : 1,
-	"HUGGINGFACE_TOKEN" : "YOUR_TOKEN_HERE",
-	"PROMPT" : "Enter LLM Prompt here"
+    "MODEL_PATH": "deepseek-ai/deepseek-coder-1.3b-base",
+    "max_new_tokens": 512,
+    "num_return_sequences": 1,
+    "HUGGINGFACE_TOKEN": "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",
+    "PROMPT": "write a calculator in C"
 }
