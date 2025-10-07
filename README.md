@@ -46,11 +46,6 @@ This will install and build:
 
 ## 🎯 Usage
 
-### Activate Environment
-```bash
-source /scratch/your_username/klee-venv/bin/activate
-```
-
 ### Generate and Analyze Code
 ```bash
 # Run the complete pipeline (LLM generation + analysis)
