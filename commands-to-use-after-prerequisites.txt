@@ -1,3 +1,0 @@
-python3 run_llm.py 
-./compile-bitcode-executable.sh 
-python3 run_codeql.py

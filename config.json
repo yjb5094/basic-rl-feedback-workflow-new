@@ -2,6 +2,6 @@
     "MODEL_PATH": "deepseek-ai/deepseek-coder-1.3b-base",
     "max_new_tokens": 512,
     "num_return_sequences": 1,
-    "HUGGINGFACE_TOKEN": "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",
+    "HUGGINGFACE_TOKEN": <token>,
     "PROMPT": "write a calculator in C"
 }

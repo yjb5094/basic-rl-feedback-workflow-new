@@ -54,15 +54,36 @@ pip install --cache-dir="$PIP_CACHE_DIR" torch==2.3.0 torchvision==0.18.0 torcha
 # Install other Python dependencies
 pip install --cache-dir="$PIP_CACHE_DIR" -r "$(dirname "${BASH_SOURCE[0]}")/gpu_requirements.txt"
 
-# Install CodeQL
+# Install CodeQL Complete Bundle (includes all extractors and query packs)
 if [ ! -f "$CODEQL_DIR/codeql" ]; then
-    echo "Installing CodeQL..."
-    wget https://github.com/github/codeql-cli-binaries/releases/download/v2.21.1/codeql-linux64.zip
-    unzip codeql-linux64.zip -d "$SCRATCH_DIR"
-    "$CODEQL_DIR/codeql" pack download codeql/cpp-all
-    echo "✓ CodeQL installed at $CODEQL_DIR"
+    echo "Installing CodeQL complete bundle..."
+    # Download the complete CodeQL bundle (712MB) which includes all language extractors and query packs
+    wget https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.23.2/codeql-bundle-linux64.tar.gz
+    echo "Extracting CodeQL bundle (this may take a moment)..."
+    tar -xzf codeql-bundle-linux64.tar.gz -C "$SCRATCH_DIR"
+    
+    # Test CodeQL installation and verify cpp support
+    if "$CODEQL_DIR/codeql" version > /dev/null 2>&1; then
+        echo "✓ CodeQL complete bundle installed successfully at $CODEQL_DIR"
+        # Verify C++ language support and security queries are available
+        if "$CODEQL_DIR/codeql" resolve languages | grep -q "cpp"; then
+            echo "✓ C++ language extractor available"
+        fi
+        if "$CODEQL_DIR/codeql" resolve queries cpp-security-and-quality.qls > /dev/null 2>&1; then
+            echo "✓ C++ security query suite available"
+        fi
+    else
+        echo "⚠ CodeQL installation may have issues"
+    fi
 else
     echo "✓ CodeQL already installed"
+    # Verify this is the complete bundle, not just CLI
+    if "$CODEQL_DIR/codeql" resolve languages | grep -q "cpp"; then
+        echo "✓ Complete CodeQL bundle with C++ support confirmed"
+    else
+        echo "⚠ Warning: CodeQL CLI-only version detected. Complete bundle recommended for C++ analysis."
+        echo "  To upgrade: rm -rf $CODEQL_DIR && re-run this script"
+    fi
 fi
 
 # Install CMake
@@ -187,6 +208,25 @@ else
     echo "! KLEE test failed"
 fi
 
+# Test CodeQL security analysis capability
+echo "Testing CodeQL security analysis..."
+if "$CODEQL_DIR/codeql" resolve queries cpp-security-and-quality.qls > /dev/null 2>&1; then
+    echo "✓ CodeQL C++ security queries available"
+else
+    echo "! CodeQL security queries not found"
+fi
+
 echo ""
 echo "To activate the environment: source $VENV_DIR/bin/activate"
-echo "All components are ready for secure code generation workflow!"
+echo ""
+echo "🎉 All components are ready for secure code generation workflow!"
+echo ""
+echo "Key Components Installed:"
+echo "  - Python 3.11 + PyTorch (CUDA): $VENV_DIR"
+echo "  - CodeQL Complete Bundle: $CODEQL_DIR (v2.23.2 with all extractors)"
+echo "  - KLEE Symbolic Execution: $KLEE_DIR/build/bin/klee"
+echo "  - LLVM 14.0: $LLVM_DIR"
+echo "  - Z3 Solver: $Z3_DIR"
+echo "  - SQLite: $SQLITE_DIR"
+echo ""
+echo "Ready to run: ./run_pipeline.sh"
