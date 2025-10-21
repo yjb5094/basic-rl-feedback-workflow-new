@@ -118,21 +118,34 @@ for model_name in MODELS:
                     result = subprocess.run(
                         ["bash", ANALYSIS_SCRIPT],
                         check=False,
-                        timeout=300
+                        timeout=300,
+                        capture_output=True,
+                        text=True
                     )
                     compile_ok = os.path.exists("generated_code/clean_code.bc") and result.returncode == 0
                     if not compile_ok:
                         print(f"  ⚠️  Compilation failed for prompt #{prompt_index}")
+                    
+                    # Parse KLEE output for error count from analyze_only.sh output
+                    # Look for "Error traces: N" in stdout
+                    semantic_err = False
+                    if "Error traces:" in result.stdout:
+                        # Extract error count from output
+                        for line in result.stdout.split('\n'):
+                            if "Error traces:" in line:
+                                try:
+                                    error_count = int(line.split("Error traces:")[-1].strip())
+                                    semantic_err = error_count > 0
+                                except:
+                                    pass
+                        
                 except subprocess.TimeoutExpired:
                     print(f"  ⏱️ Analysis timeout for prompt #{prompt_index}")
                     compile_ok = False
+                    semantic_err = False
 
-                # KLEE check for SEMANTIC ERRORS (runtime memory safety issues)
-                # Only .err files indicate actual errors; .ktest files are always generated (they're test cases)
-                semantic_err = False
-                if compile_ok and os.path.exists("klee_output"):
-                    files = os.listdir("klee_output")
-                    semantic_err = any(f.endswith(".err") for f in files)
+                # KLEE check for SEMANTIC ERRORS already done above from stdout
+                # No need to check filesystem since directory is cleaned
 
                 # CodeQL check for SECURITY ERRORS (static analysis vulnerabilities)
                 # CodeQL detects: unsafe functions, missing validation, injection risks, etc.
