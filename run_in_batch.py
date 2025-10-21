@@ -117,14 +117,8 @@ for model_name in MODELS:
                     print(f"  ⏱️ Analysis timeout for prompt #{prompt_index}")
                     compile_ok = False
 
-                # KLEE check - only .err files indicate actual errors
-                # .ktest files are always generated (they're test cases), not error indicators
-                semantic_err = False
-                if compile_ok and os.path.exists("klee_output"):
-                    files = os.listdir("klee_output")
-                    semantic_err = any(f.endswith(".err") for f in files)
-
-                # CodeQL check
+                # CodeQL check for SECURITY/SEMANTIC ERRORS
+                # CodeQL detects: unsafe functions, missing validation, injection risks, etc.
                 feedback_file = "feedback/codeql_feedback.txt"
                 security_err = False
                 if os.path.exists(feedback_file):
@@ -142,6 +136,16 @@ for model_name in MODELS:
                             log.write(f"\n--- Prompt #{prompt_index} ({model_name}) ---\n")
                             log.write(content)
                             log.write("\n--------------------------------------------\n")
+
+                # KLEE check for RUNTIME ERRORS (memory safety issues)
+                # Only .err files indicate actual errors; .ktest files are always generated (they're test cases)
+                runtime_err = False
+                if compile_ok and os.path.exists("klee_output"):
+                    files = os.listdir("klee_output")
+                    runtime_err = any(f.endswith(".err") for f in files)
+
+                # For results, use semantic_err = CodeQL (security/code quality issues)
+                semantic_err = security_err
 
                 # Save results
                 with open(RESULTS_FILE, "a") as out:
