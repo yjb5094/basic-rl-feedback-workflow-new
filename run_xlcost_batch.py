@@ -7,27 +7,6 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import time
 
-# ------------------- Helper Functions -------------------
-def auto_commit(completed_count, model_name):
-    """Auto-commit results and logs every 30 samples"""
-    if completed_count % 30 == 0 and completed_count > 0:
-        try:
-            subprocess.run(
-                ["git", "add", "-A"],
-                cwd=os.getcwd(),
-                check=False,
-                timeout=10
-            )
-            subprocess.run(
-                ["git", "commit", "-m", f"Auto-save: Completed {completed_count} samples with {model_name}"],
-                cwd=os.getcwd(),
-                check=False,
-                timeout=10
-            )
-            print(f"  💾 Auto-saved to git (checkpoint: {completed_count} samples)")
-        except Exception as e:
-            print(f"  ⚠️ Auto-commit failed: {e}")
-
 # ------------------- Configuration -------------------
 DATA_PATH = "xlcost_cpp_train.json"  # xlcost dataset (JSONL format)
 CACHE_DIR = "/scratch/yjb5094/hf_cache"
@@ -135,78 +114,62 @@ for model_name in MODELS:
                     f.write(code)
 
                 # Run analysis
-                # Run canonical analysis script and mirror run_pipeline.sh semantics
                 try:
                     result = subprocess.run(
                         ["bash", ANALYSIS_SCRIPT],
                         check=False,
-                        timeout=300
+                        timeout=90
                     )
-
-                    # compile_ok mirrors pipeline's bitcode generation success
                     compile_ok = os.path.exists("generated_code/clean_code.bc") and result.returncode == 0
                     if not compile_ok:
-                        print(f"  ⚠️  Compilation/bitcode generation failed for prompt #{prompt_index}")
+                        print(f"  ⚠️  Compilation failed for prompt #{prompt_index}")
                 except subprocess.TimeoutExpired:
                     print(f"  ⏱️ Analysis timeout for prompt #{prompt_index}")
                     compile_ok = False
 
                 # KLEE check for SEMANTIC ERRORS (runtime memory safety issues)
-                # semantic_err = True iff KLEE produced any .err files in klee_output
+                # Only .err files indicate actual errors; .ktest files are always generated (they're test cases)
                 semantic_err = False
-                if os.path.exists("klee_output"):
-                    try:
-                        files = os.listdir("klee_output")
-                        semantic_err = any(f.endswith(".err") for f in files)
-                    except Exception:
-                        semantic_err = False
+                if compile_ok and os.path.exists("klee_output"):
+                    files = os.listdir("klee_output")
+                    semantic_err = any(f.endswith(".err") for f in files)
 
                 # CodeQL check for SECURITY ERRORS (static analysis vulnerabilities)
+                # CodeQL detects: unsafe functions, missing validation, injection risks, etc.
                 feedback_file = "feedback/codeql_feedback.txt"
                 security_err = False
                 if os.path.exists(feedback_file):
-                    try:
-                        with open(feedback_file, 'r') as f:
-                            content = f.read().strip()
-                        
-                        # Security error found if file has content AND it's not the dummy message
-                        if content and "CodeQL analysis completed" not in content:
-                            security_err = True
-                        
-                        # Log all non-dummy findings
-                        if security_err:
-                            with open(CODEQL_LOG_FILE, "a") as log:
-                                log.write(f"\n--- Prompt #{prompt_index} ({model_name}) ---\n")
-                                log.write(content)
-                                log.write("\n--------------------------------------------\n")
-                    except IOError as e:
-                        print(f"  ⚠️ Error reading CodeQL feedback: {e}")
-                        security_err = False
-                else:
-                    # Feedback file doesn't exist - this shouldn't happen if analyze_only.sh ran correctly
-                    print(f"  ⚠️ Warning: CodeQL feedback file not found for prompt #{prompt_index}")
+                    with open(feedback_file) as f:
+                        content = f.read()
+
+                    # Detect presence of CodeQL findings (any rule ID present)
+                    # CodeQL rule IDs follow pattern: cpp/XXX
+                    if content.strip() and "CodeQL analysis completed" not in content:
+                        # If file has actual findings (not just the dummy message)
+                        security_err = True
+
+                    # Append full contents to master log if any errors found
+                    if security_err:
+                        with open(CODEQL_LOG_FILE, "a") as log:
+                            log.write(f"\n--- Prompt #{prompt_index} ({model_name}) ---\n")
+                            log.write(content)
+                            log.write("\n--------------------------------------------\n")
 
                 # Save results
                 with open(RESULTS_FILE, "a") as out:
                     out.write(f"{model_name},{prompt_index},{compile_ok},{semantic_err},{security_err}\n")
 
                 completed += 1
-                
-                # Auto-commit every 30 samples to preserve logs and results
-                auto_commit(completed, model_name)
 
                 # Progress tracking every 50 prompts
                 if completed % 50 == 0:
                     elapsed = time.time() - model_start
-                    if completed > 0:
-                        avg_time = elapsed / completed
-                        remaining = max(0, (MAX_PROMPTS - prompt_index)) * avg_time
-                        eta_hours = remaining / 3600
-                        print(f"\n  📊 Progress: {completed}/{MAX_PROMPTS}")
-                        print(f"  ⏱️ Avg time per prompt: {avg_time:.1f}s")
-                        print(f"  ⏱️ ETA: {eta_hours:.2f} hours\n")
-                    else:
-                        print(f"\n  📊 Progress: {completed}/{MAX_PROMPTS} (no completed prompts yet)\n")
+                    avg_time = elapsed / completed
+                    remaining = (MAX_PROMPTS - prompt_index) * avg_time
+                    eta_hours = remaining / 3600
+                    print(f"\n  📊 Progress: {completed}/{MAX_PROMPTS}")
+                    print(f"  ⏱️ Avg time per prompt: {avg_time:.1f}s")
+                    print(f"  ⏱️ ETA: {eta_hours:.2f} hours\n")
 
         except RuntimeError as e:
             if "out of memory" in str(e).lower():
@@ -222,10 +185,7 @@ for model_name in MODELS:
     print(f"\n{'='*60}")
     print(f"✓ {model_name} complete! Completed: {completed}/{MAX_PROMPTS}")
     print(f"  Time: {model_elapsed/3600:.2f} hours")
-    if completed > 0:
-        print(f"  Avg per prompt: {model_elapsed/completed:.1f}s")
-    else:
-        print("  Avg per prompt: N/A (no completed prompts)")
+    print(f"  Avg per prompt: {model_elapsed/completed:.1f}s")
     print(f"{'='*60}\n")
 
     del model, tokenizer
