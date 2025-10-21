@@ -13,7 +13,7 @@ CACHE_DIR = "/scratch/yjb5094/hf_cache"
 RESULTS_FILE = "results.csv"
 CODEQL_LOG_FILE = "feedback/codeql_errors_all.txt"  # <== NEW aggregated error log
 MODELS = ["deepseek-ai/deepseek-coder-1.3b-instruct"]
-MAX_PROMPTS = 23  # Total number of prompts in the dataset
+MAX_PROMPTS = 1  # Total number of prompts in the dataset
 MAX_TOKENS = 512
 BATCH_SIZE = 4  # Adjust based on GPU memory
 ANALYSIS_SCRIPT = "analyze_only.sh"
@@ -109,7 +109,7 @@ for model_name in MODELS:
                     result = subprocess.run(
                         ["bash", ANALYSIS_SCRIPT],
                         check=False,
-                        timeout=300
+                        timeout=90
                     )
 
                     # Derive compile_ok the same way pipeline does:
@@ -136,26 +136,19 @@ for model_name in MODELS:
                 feedback_file = "feedback/codeql_feedback.txt"
                 security_err = False
                 if os.path.exists(feedback_file):
-                    try:
-                        with open(feedback_file, 'r') as f:
-                            content = f.read().strip()
-                        
-                        # Security error found if file has content AND it's not the dummy message
-                        if content and "CodeQL analysis completed" not in content:
-                            security_err = True
-                        
-                        # Log all non-dummy findings
-                        if security_err:
-                            with open(CODEQL_LOG_FILE, "a") as log:
-                                log.write(f"\n--- Prompt #{prompt_index} ({model_name}) ---\n")
-                                log.write(content)
-                                log.write("\n--------------------------------------------\n")
-                    except IOError as e:
-                        print(f"  ⚠️ Error reading CodeQL feedback: {e}")
-                        security_err = False
-                else:
-                    # Feedback file doesn't exist - this shouldn't happen if analyze_only.sh ran correctly
-                    print(f"  ⚠️ Warning: CodeQL feedback file not found for prompt #{prompt_index}")
+                    with open(feedback_file) as f:
+                        content = f.read()
+
+                    # If feedback contains rule IDs (non-empty and not the dummy success message), mark security_err
+                    if content.strip() and "CodeQL analysis completed" not in content:
+                        security_err = True
+
+                    # Append full contents to master log if any errors found
+                    if security_err:
+                        with open(CODEQL_LOG_FILE, "a") as log:
+                            log.write(f"\n--- Prompt #{prompt_index} ({model_name}) ---\n")
+                            log.write(content)
+                            log.write("\n--------------------------------------------\n")
 
                 # Save results
                 with open(RESULTS_FILE, "a") as out:

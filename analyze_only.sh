@@ -169,7 +169,7 @@ if command -v clang >/dev/null 2>&1; then
         rm -rf "$KLEE_OUTPUT"
 
         export LD_LIBRARY_PATH="/scratch/$(whoami)/z3-build/lib:/scratch/$(whoami)/sqlite/lib:$LD_LIBRARY_PATH"
-        timeout 30s "$KLEE_BIN" --output-dir="$KLEE_OUTPUT" --write-test-info --write-kqueries generated_code/clean_code.bc
+        timeout 120s "$KLEE_BIN" --output-dir="$KLEE_OUTPUT" --write-test-info --write-kqueries --search=nurs:covnew --use-merge --max-memory=1024 --max-forks=10 generated_code/clean_code.bc
         
         if [ -d "$KLEE_OUTPUT" ] && [ "$(ls -A $KLEE_OUTPUT 2>/dev/null)" ]; then
             echo "✓ KLEE analysis complete: $KLEE_OUTPUT/"

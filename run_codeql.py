@@ -38,9 +38,12 @@ for run in data.get("runs", []):
         rule_id = result.get("ruleId")
         findings.append(rule_id)
 
-feedback = "\n".join(findings)
-#Can print here or save to a file
-# print(feedback)
+# Write findings to file - even if empty, write something to indicate success
+feedback = "\n".join(findings) if findings else ""
 feedback_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "feedback", "codeql_feedback.txt")
 with open(feedback_path, "w") as f1:
-    f1.write(feedback)
+    if feedback:
+        f1.write(feedback)
+    else:
+        f1.write("CodeQL analysis completed - no findings")
+

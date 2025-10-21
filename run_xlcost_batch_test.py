@@ -8,21 +8,30 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import time
 
 # ------------------- Configuration -------------------
-DATA_PATH = "QuestionPromptForLLMs.json"  # Using local dataset
+DATA_PATH = "xlcost_cpp_train.json"  # xlcost dataset (JSONL format)
 CACHE_DIR = "/scratch/yjb5094/hf_cache"
-RESULTS_FILE = "results.csv"
-CODEQL_LOG_FILE = "feedback/codeql_errors_all.txt"  # <== NEW aggregated error log
+RESULTS_FILE = "xlcost_results.csv"
+CODEQL_LOG_FILE = "feedback/codeql_errors_xlcost.txt"  # Separate log for xlcost
 MODELS = ["deepseek-ai/deepseek-coder-1.3b-instruct"]
-MAX_PROMPTS = 23  # Total number of prompts in the dataset
+MAX_PROMPTS = 463  # Total prompts in xlcost dataset
 MAX_TOKENS = 512
 BATCH_SIZE = 4  # Adjust based on GPU memory
 ANALYSIS_SCRIPT = "analyze_only.sh"
 
 # ------------------- Load dataset -------------------
-with open(DATA_PATH) as f:
-    json_data = json.load(f)
-    # Handle both list and dict with 'questions' key
-    data = json_data if isinstance(json_data, list) else json_data.get("questions", [])
+# Load JSONL format (one JSON object per line)
+data = []
+print(f"Loading {DATA_PATH}...")
+try:
+    with open(DATA_PATH) as f:
+        for line in f:
+            if line.strip():
+                data.append(json.loads(line))
+    print(f"✓ Loaded {len(data)} samples from xlcost dataset")
+except FileNotFoundError:
+    print(f"✗ Error: {DATA_PATH} not found!")
+    print(f"  Available files: {os.listdir('.')}")
+    exit(1)
 
 # Track completed prompts
 done = set()
@@ -31,6 +40,7 @@ if os.path.exists(RESULTS_FILE):
         for row in csv.reader(f):
             if len(row) >= 2:
                 done.add((row[0], int(row[1])))
+    print(f"✓ Resuming from {len(done)} completed prompts")
 
 # Ensure directories exist
 os.makedirs("generated_code", exist_ok=True)
@@ -38,7 +48,7 @@ os.makedirs("feedback", exist_ok=True)
 
 # Clear previous CodeQL error log
 with open(CODEQL_LOG_FILE, "w") as log:
-    log.write("==== Aggregated CodeQL Error Log ====\n\n")
+    log.write("==== Aggregated CodeQL Error Log - XLCost ====\n\n")
 
 start_time = time.time()
 
@@ -62,10 +72,10 @@ for model_name in MODELS:
     model_start = time.time()
 
     # ------------------- Batched generation -------------------
-    for batch_start in range(0, min(MAX_PROMPTS, len(data)), BATCH_SIZE):
+    for batch_start in range(50, min(MAX_PROMPTS, len(data)), BATCH_SIZE):
         batch_items = data[batch_start: batch_start + BATCH_SIZE]
         batch_prompts = [
-            "Write C code (only code, no explanations or comments) to: " + (item.get("task") or item.get("prompt") or item.get("question") or item.get("instruction") or "")
+            "Write C code (only code, no explanations or comments) to: " + (item.get("text") or item.get("prompt") or item.get("question") or item.get("instruction") or "")
             for item in batch_items
         ]
 
@@ -104,7 +114,7 @@ for model_name in MODELS:
                     f.write(code)
 
                 # Run analysis
-                # Run the canonical analysis script (this mirrors run_pipeline.sh)
+                # Run canonical analysis script and mirror run_pipeline.sh semantics
                 try:
                     result = subprocess.run(
                         ["bash", ANALYSIS_SCRIPT],
@@ -112,8 +122,7 @@ for model_name in MODELS:
                         timeout=300
                     )
 
-                    # Derive compile_ok the same way pipeline does:
-                    # pipeline generates LLVM bitcode (generated_code/clean_code.bc) when compilation succeeds.
+                    # compile_ok mirrors pipeline's bitcode generation success
                     compile_ok = os.path.exists("generated_code/clean_code.bc") and result.returncode == 0
                     if not compile_ok:
                         print(f"  ⚠️  Compilation/bitcode generation failed for prompt #{prompt_index}")
@@ -122,7 +131,7 @@ for model_name in MODELS:
                     compile_ok = False
 
                 # KLEE check for SEMANTIC ERRORS (runtime memory safety issues)
-                # Follow pipeline: semantic_err is True iff KLEE produced any .err files in klee_output
+                # semantic_err = True iff KLEE produced any .err files in klee_output
                 semantic_err = False
                 if os.path.exists("klee_output"):
                     try:
@@ -132,7 +141,6 @@ for model_name in MODELS:
                         semantic_err = False
 
                 # CodeQL check for SECURITY ERRORS (static analysis vulnerabilities)
-                # Follow pipeline: run_codeql.py writes findings (rule IDs) to feedback/codeql_feedback.txt
                 feedback_file = "feedback/codeql_feedback.txt"
                 security_err = False
                 if os.path.exists(feedback_file):
