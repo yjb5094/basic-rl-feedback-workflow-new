@@ -7,6 +7,27 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import time
 
+# ------------------- Helper Functions -------------------
+def auto_commit(completed_count, model_name):
+    """Auto-commit results and logs every 30 samples"""
+    if completed_count % 30 == 0 and completed_count > 0:
+        try:
+            subprocess.run(
+                ["git", "add", "-A"],
+                cwd=os.getcwd(),
+                check=False,
+                timeout=10
+            )
+            subprocess.run(
+                ["git", "commit", "-m", f"Auto-save: Completed {completed_count} samples with {model_name}"],
+                cwd=os.getcwd(),
+                check=False,
+                timeout=10
+            )
+            print(f"  💾 Auto-saved to git (checkpoint: {completed_count} samples)")
+        except Exception as e:
+            print(f"  ⚠️ Auto-commit failed: {e}")
+
 # ------------------- Configuration -------------------
 DATA_PATH = "xlcost_cpp_train.json"  # xlcost dataset (JSONL format)
 CACHE_DIR = "/scratch/yjb5094/hf_cache"
