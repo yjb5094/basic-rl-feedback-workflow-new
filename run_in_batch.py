@@ -117,11 +117,12 @@ for model_name in MODELS:
                     print(f"  ⏱️ Analysis timeout for prompt #{prompt_index}")
                     compile_ok = False
 
-                # KLEE check
+                # KLEE check - only .err files indicate actual errors
+                # .ktest files are always generated (they're test cases), not error indicators
                 semantic_err = False
                 if compile_ok and os.path.exists("klee_output"):
                     files = os.listdir("klee_output")
-                    semantic_err = any(f.endswith(".err") or f.endswith(".ktest") for f in files)
+                    semantic_err = any(f.endswith(".err") for f in files)
 
                 # CodeQL check
                 feedback_file = "feedback/codeql_feedback.txt"
