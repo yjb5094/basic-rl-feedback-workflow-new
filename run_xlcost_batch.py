@@ -118,34 +118,26 @@ for model_name in MODELS:
                     result = subprocess.run(
                         ["bash", ANALYSIS_SCRIPT],
                         check=False,
-                        timeout=300,
-                        capture_output=True,
-                        text=True
+                        timeout=300
                     )
                     compile_ok = os.path.exists("generated_code/clean_code.bc") and result.returncode == 0
                     if not compile_ok:
                         print(f"  ⚠️  Compilation failed for prompt #{prompt_index}")
-                    
-                    # Parse KLEE output for error count from analyze_only.sh output
-                    # Look for "Error traces: N" in stdout
-                    semantic_err = False
-                    if "Error traces:" in result.stdout:
-                        # Extract error count from output
-                        for line in result.stdout.split('\n'):
-                            if "Error traces:" in line:
-                                try:
-                                    error_count = int(line.split("Error traces:")[-1].strip())
-                                    semantic_err = error_count > 0
-                                except:
-                                    pass
-                        
                 except subprocess.TimeoutExpired:
                     print(f"  ⏱️ Analysis timeout for prompt #{prompt_index}")
                     compile_ok = False
-                    semantic_err = False
 
-                # KLEE check for SEMANTIC ERRORS already done above from stdout
-                # No need to check filesystem since directory is cleaned
+                # KLEE check for SEMANTIC ERRORS (runtime memory safety issues)
+                # Count .err files - they indicate actual KLEE found errors
+                semantic_err = False
+                klee_output_dir = "klee_output"
+                if os.path.exists(klee_output_dir):
+                    try:
+                        # Count .err files in klee_output
+                        err_files = [f for f in os.listdir(klee_output_dir) if f.endswith(".err")]
+                        semantic_err = len(err_files) > 0
+                    except Exception:
+                        semantic_err = False
 
                 # CodeQL check for SECURITY ERRORS (static analysis vulnerabilities)
                 # CodeQL detects: unsafe functions, missing validation, injection risks, etc.
@@ -153,11 +145,12 @@ for model_name in MODELS:
                 security_err = False
                 if os.path.exists(feedback_file):
                     with open(feedback_file) as f:
-                        content = f.read()
+                        content = f.read().strip()
 
                     # Detect presence of CodeQL findings (any rule ID present)
-                    # CodeQL rule IDs follow pattern: cpp/XXX
-                    if content.strip() and "CodeQL analysis completed" not in content:
+                    # The dummy message from run_codeql.py contains these strings:
+                    # "CodeQL analysis completed", "No query pack errors found"
+                    if content and "CodeQL analysis completed" not in content and "No query pack errors found" not in content:
                         # If file has actual findings (not just the dummy message)
                         security_err = True
 
