@@ -144,8 +144,8 @@ for model_name in MODELS:
                     files = os.listdir("klee_output")
                     runtime_err = any(f.endswith(".err") for f in files)
 
-                # For results, use semantic_err = CodeQL (security/code quality issues)
-                semantic_err = security_err
+                # For results: semantic_err = KLEE runtime errors, security_err = CodeQL errors (INDEPENDENT)
+                semantic_err = runtime_err
 
                 # Save results
                 with open(RESULTS_FILE, "a") as out:
