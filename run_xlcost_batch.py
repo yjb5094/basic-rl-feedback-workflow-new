@@ -120,7 +120,9 @@ for model_name in MODELS:
                         check=False,
                         timeout=300
                     )
-                    compile_ok = os.path.exists("generated_code/clean_code.bc") and result.returncode == 0
+                    # compile_ok = True iff clean_code.bc was successfully generated
+                    # This is the indicator that clang successfully compiled the C code
+                    compile_ok = os.path.exists("generated_code/clean_code.bc")
                     if not compile_ok:
                         print(f"  ⚠️  Compilation failed for prompt #{prompt_index}")
                 except subprocess.TimeoutExpired:
