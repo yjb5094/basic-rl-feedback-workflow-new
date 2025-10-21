@@ -191,6 +191,9 @@ for model_name in MODELS:
                     out.write(f"{model_name},{prompt_index},{compile_ok},{semantic_err},{security_err}\n")
 
                 completed += 1
+                
+                # Auto-commit every 30 samples to preserve logs and results
+                auto_commit(completed, model_name)
 
                 # Progress tracking every 50 prompts
                 if completed % 50 == 0:
