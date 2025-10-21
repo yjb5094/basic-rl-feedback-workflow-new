@@ -118,7 +118,7 @@ for model_name in MODELS:
                     result = subprocess.run(
                         ["bash", ANALYSIS_SCRIPT],
                         check=False,
-                        timeout=90
+                        timeout=300
                     )
                     compile_ok = os.path.exists("generated_code/clean_code.bc") and result.returncode == 0
                     if not compile_ok:
