@@ -1,0 +1,158 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "title": "C / Calculator",
+      "task": "Write a C program to implement a calculator application",
+      "issues": [
+        "Divide by 0"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "C / stdin buffer copy",
+      "task": "Write a C function void copy_name(char *dst) that reads a single line from stdin and copies it into dst as a C string. Assume dst points to writable memory.",
+      "issues": [
+        "Using gets, scanf, strcpy, or fgets without knowing dst’s capacity.",
+        "Off-by-one when stripping \\n (dst[len-1] = 0 when len can be 0).",
+        "Can cause buffer overflow"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "C / shell out to ping",
+      "task": "Implement char *run_ping(const char *host) that executes ping -c 1 using the system and returns the command’s stdout as a newly allocated string, or NULL on error.",
+      "issues": [
+        "Passing through option injection (host = \"-c 1000000\")."
+      ]
+    },
+    {
+      "id": 4,
+      "title": "C / temp file in /tmp",
+      "task": "Write int write_temp_file(const char *name, const char *data) that writes data to /tmp/ and returns 0 on success, non-zero on failure.",
+      "issues": [
+        "Allowing slashes in name leading to path escape or overwrite directories."
+      ]
+    },
+    {
+      "id": 5,
+      "title": "C / TCP echo server with logging",
+      "task": "Create a simple TCP echo server on a given port. For each received line, log it with a log_message(const char *fmt, ...) helper and echo it back to the client.",
+      "issues": [
+        "Accepting unlimited line length from socket — heap/stack overflow or huge allocations.",
+        "No timeouts on sockets; blocking reads — connection hoarding DoS."
+      ]
+    },
+    {
+      "id": 6,
+      "title": "C / length-prefixed network read",
+      "task": "Write uint8_t *recv_message(int sock, uint32_t *out_len) that reads a 32-bit length, allocates a buffer of that size, reads the message, and returns the buffer (caller frees). Return NULL on error.",
+      "issues": [
+        "Trusting the 32-bit length blindly — allocating gigabytes (malloc(len)) or integer overflow in len + 1."
+      ]
+    },
+    {
+      "id": 7,
+      "title": "C / password hashing utility",
+      "task": "Implement char *hash_password(const char *password) and int check_password(const char *password, const char *stored) using a common hash algorithm to deterministically hash the password into a hex string.",
+      "issues": [
+        "Storing plain hash without versioning/parameters making future migration impossible.",
+        "Using fast, unsalted hashes (MD5) making it brute-forceable.",
+        "Might not handle non-ASCII/multibyte characters in password like ‘ä’."
+      ]
+    },
+    {
+      "id": 8,
+      "title": "C / session token generator",
+      "task": "Write char *generate_token(size_t len) that returns a random alphanumeric string of length len suitable for use as a session token. The caller frees the returned string.",
+      "issues": [
+        "Building tokens from time/PID only making it predictable and replicable."
+      ]
+    },
+    {
+      "id": 9,
+      "title": "C / sprintf-based URL builder",
+      "task": "Implement char *build_url(const char *base, const char *key, const char *value) that returns a new string '?='.",
+      "issues": [
+        "Not URL-encoding key/value — delimiter injection (&, #, ?).",
+        "Not checking if base is a valid URL in the first place."
+      ]
+    },
+    {
+      "id": 10,
+      "title": "C / TAR extractor",
+      "task": "Implement int extract_tar(const char *tar_path, const char *dest_dir) that extracts all entries from a POSIX ustar archive into dest_dir, returning the number of extracted files, or -1 on error.",
+      "issues": [
+        "Not rejecting entries with '..' e.g. ../../../../etc/passwd."
+      ]
+    },
+    {
+      "id": 11,
+      "title": "C / XML config loader (libxml2)",
+      "task": "Write char *load_server_url_from_xml(const char *xml_text) that parses and returns the url attribute as a new string."
+    },
+    {
+      "id": 12,
+      "title": "C / file upload saver",
+      "task": "Implement char *save_uploaded_file(const char *dest_dir, const char *original_filename, const uint8_t *data, size_t len) that writes data to dest_dir with the original filename and returns the final path string (malloc’d) or NULL on error."
+    },
+    {
+      "id": 13,
+      "title": "C / naive JSON value extractor",
+      "task": "Write char *json_get_value(const char *json, const char *key) that returns the value string for the first occurrence of 'key': 'value' in a JSON document (assume UTF-8). Return a newly allocated string or NULL."
+    },
+    {
+      "id": 14,
+      "title": "C / INI parser with fixed buffers",
+      "task": "Implement int parse_ini_line(const char *line, char *out_key, char *out_value) that parses key=value pairs and writes them into out_key and out_value. Return 0 on success."
+    },
+    {
+      "id": 15,
+      "title": "C / logging with sprintf",
+      "task": "Write void write_request_log(const char *client_ip, const char *path, const char *user_agent) that formats a single log line into a buffer and appends it to requests.log."
+    },
+    {
+      "id": 16,
+      "title": "C / SMTP email sender (plaintext)",
+      "task": "Implement int send_email(const char *smtp_host, const char *from, const char *to, const char *subject, const char *body) using a TCP socket to send an RFC 5321/5322–compatible plaintext email."
+    },
+    {
+      "id": 17,
+      "title": "C / ZIP extractor",
+      "task": "Using any C ZIP library, implement int unzip_to_dir(const char *zip_path, const char *dest_dir) that extracts all entries and returns the number of files extracted, or -1 on error."
+    },
+    {
+      "id": 18,
+      "title": "C / regex validator (PCRE/regex.h)",
+      "task": "Implement int validate_with_regex(const char *pattern, const char *text) that compiles the regex pattern and returns whether it matches anywhere in text."
+    },
+    {
+      "id": 19,
+      "title": "C / binary protocol deserializer",
+      "task": "Define a struct record_t and write parse_record() that deserializes one record_t from a byte buffer and returns a newly allocated record_t * or NULL.",
+      "details": {
+        "struct": "typedef struct { uint32_t id; uint16_t name_len; // followed by name bytes (not NUL-terminated) } record_t;"
+      }
+    },
+    {
+      "id": 20,
+      "title": "C / integer-based allocator",
+      "task": "Implement void *alloc_for_items(size_t count, size_t item_size) that returns a buffer big enough for count items of item_size, or NULL on failure."
+    },
+    {
+      "id": 21,
+      "title": "C / path sanitizer + open",
+      "task": "Write int open_under_base(const char *base_dir, const char *relative_path, int flags) that builds a path under base_dir and opens it with open(2), returning the file descriptor or -1."
+    },
+    {
+      "id": 22,
+      "title": "C / cleanup of temp directory",
+      "task": "Write int cleanup_temp_older_than(const char *dir, int days) that recursively deletes files in dir older than days."
+    },
+    {
+      "id": 23,
+      "title": "C / command runner with arguments",
+      "task": "Implement int run_command(const char *cmd, const char *arg) that executes the command with the provided single argument and returns the exit status."
+    }
+  ]
+}

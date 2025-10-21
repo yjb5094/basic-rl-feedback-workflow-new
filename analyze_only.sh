@@ -24,6 +24,86 @@ else
     cp generated_code/generated_code.c generated_code/clean_code.c
 fi
 
+# Remove leading/trailing non-code lines
+# Remove lines that are purely descriptive text (don't contain code-like patterns)
+python3 << 'PYTHON_EOF'
+import re
+
+with open("generated_code/clean_code.c", "r") as f:
+    content = f.read()
+
+# First, remove any lines that are clearly instruction/prompt text
+# These typically start with capital letters and have colpora of text
+lines = content.split("\n")
+
+# Remove leading lines that don't look like code
+filtered = []
+for line in lines:
+    stripped = line.strip()
+    # Skip empty lines at start
+    if not filtered and not stripped:
+        continue
+    # Skip lines that start with "Write ", "Implement ", "Use ", etc (prompt echoes)
+    if not filtered and any(stripped.startswith(prefix) for prefix in ["Write ", "Implement ", "Use ", "Create ", "Define ", "Building "]):
+        continue
+    filtered.append(line)
+
+lines = filtered
+
+# Find the first line that looks like C code
+start_idx = 0
+has_includes = False
+for i, line in enumerate(lines):
+    stripped = line.strip()
+    if stripped.startswith("#include"):
+        has_includes = True
+        start_idx = i
+        break
+    if (stripped.startswith("#define") or
+        stripped.startswith("//") or
+        re.match(r"^(int|void|char|float|double|struct|typedef|unsigned|signed|static|extern)", line) or
+        stripped.startswith("/*")):
+        start_idx = i
+        break
+
+# Find the last meaningful code line
+end_idx = len(lines)
+for i in range(len(lines) - 1, -1, -1):
+    stripped = lines[i].strip()
+    if stripped and (stripped[0] in ['}', '#'] or 'return' in stripped or ';' in stripped):
+        end_idx = i + 1
+        break
+
+# Extract just the code
+code_lines = lines[start_idx:end_idx]
+
+# Clean up: remove very long lines of text (likely explanations)
+cleaned = []
+for line in code_lines:
+    stripped = line.strip()
+    # Skip lines that are clearly just prose/explanations (no code chars, and very long)
+    if len(stripped) > 150 and not any(c in stripped for c in '(){};,=[]<>'):
+        continue
+    cleaned.append(line)
+
+# Remove trailing comment-only lines at the end
+while cleaned and cleaned[-1].strip().startswith("//"):
+    cleaned.pop()
+
+# If no includes were found, prepend standard ones
+if not has_includes:
+    cleaned = [
+        "#include <stdio.h>",
+        "#include <stdlib.h>",
+        "#include <string.h>",
+        "",
+    ] + cleaned
+
+# Write back
+with open("generated_code/clean_code.c", "w") as f:
+    f.write("\n".join(cleaned))
+PYTHON_EOF
+
 # Remove any remaining non-C text (lines that don't look like C code)
 sed -i '/^[A-Z][a-z].*[^;{}]$/d' generated_code/clean_code.c
 sed -i '/^Here.*:/d' generated_code/clean_code.c
@@ -32,6 +112,18 @@ sed -i '/^The.*:/d' generated_code/clean_code.c
 sed -i '/^\/\*$/,/^\*\//d' generated_code/clean_code.c
 # Remove duplicate return statements (keep only the last one before closing brace)
 awk '/return 0;/{if(seen) next; seen=1} !/return 0;/{seen=0} 1' generated_code/clean_code.c > generated_code/temp_clean.c && mv generated_code/temp_clean.c generated_code/clean_code.c
+
+# If the code doesn't have a main function, wrap it
+if ! grep -q "int main" generated_code/clean_code.c; then
+    # Just append a simple main - don't add includes again since they're already there
+    {
+        cat generated_code/clean_code.c
+        echo ""
+        echo "int main() {"
+        echo "    return 0;"
+        echo "}"
+    } > generated_code/temp_clean.c && mv generated_code/temp_clean.c generated_code/clean_code.c
+fi
 
 echo "✓ Clean C code prepared: generated_code/clean_code.c"
 
