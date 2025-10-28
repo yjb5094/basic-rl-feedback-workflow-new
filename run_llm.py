@@ -82,11 +82,12 @@ outputs = model.generate(
     pad_token_id=tokenizer.eos_token_id
 )
 
-# Decode the full generated text
-generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-# Extract just the new content (remove the prompt)
-code = generated_text[len(prompt_text):].strip()
+# Extract only the newly generated tokens (skip the prompt tokens)
+# When using generate(), outputs[0] contains all tokens including the prompt
+# We need to skip exactly prompt_token_length tokens to get only generated content
+prompt_token_length = inputs.input_ids.shape[1]
+generated_token_ids = outputs[0][prompt_token_length:]
+code = tokenizer.decode(generated_token_ids, skip_special_tokens=True).strip()
 
 # Add the full program structure
 full_code = f"{prompt_text}{code}"

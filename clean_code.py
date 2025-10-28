@@ -13,84 +13,77 @@ def clean_c_code(input_file, output_file):
     with open(input_file, 'r') as f:
         content = f.read()
     
-    # Remove any code block markers (```c, ```)
-    content = re.sub(r'```[a-zA-Z]*\n?', '', content)
+    # Remove any code block markers (```c, ```, etc.)
+    content = re.sub(r'```[a-zA-Z0-9]*\n?', '', content)
     
-    # Find the start and end of the main C code block
     lines = content.split('\n')
     code_lines = []
-    
-    # First pass: extract everything up to the first explanatory comment after main function
-    main_started = False
+    in_code = False
     brace_count = 0
+    main_ended = False
     
     for i, line in enumerate(lines):
         stripped = line.strip()
         
-        # Skip empty lines at the beginning
-        if not code_lines and not stripped:
+        # Skip empty lines before code starts
+        if not in_code and not stripped:
             continue
         
-        # Detect start of main function
-        if 'int main(' in line:
-            main_started = True
-        
-        # Skip explanatory comments that clearly indicate end of code
-        if stripped.startswith('// This is') or stripped.startswith('// Note:') or stripped.startswith('// Warning:'):
-            # If we're past the main function, this is explanatory text
-            if main_started and brace_count == 0:
-                break
+        # Skip non-code lines before we detect C code
+        # C code starts with #include, struct/typedef declarations, or function definitions
+        if not in_code:
+            # Check if this line looks like C code
+            if (stripped.startswith('#include') or 
+                stripped.startswith('#define') or
+                stripped.startswith('typedef ') or
+                stripped.startswith('struct ') or
+                stripped.startswith('int ') or
+                stripped.startswith('void ') or
+                stripped.startswith('char ') or
+                stripped.startswith('float ') or
+                stripped.startswith('double ') or
+                stripped.startswith('long ') or
+                stripped.startswith('unsigned ') or
+                stripped.startswith('static ') or
+                ('{' in line and not any(c.isalpha() for c in line[:line.index('{')]))):
+                in_code = True
+                # Don't add this line if it's just a stray character like '.' or ';'
+                if len(stripped) <= 2:
+                    continue
             else:
+                # This is explanatory text, skip it
                 continue
         
-        # Track braces only after main starts
-        if main_started:
-            brace_count += line.count('{') - line.count('}')
-        
-        code_lines.append(line)
-        
-        # If we've completed the main function (brace count back to 0), we can stop
-        if main_started and brace_count == 0 and '}' in line:
-            break
-    
-    # Join the cleaned lines
-    cleaned_content = '\n'.join(code_lines)
-    
-    # Remove any duplicate code blocks that might appear after
-    # Look for patterns like duplicate return statements and extra closing braces
-    lines = cleaned_content.split('\n')
-    final_lines = []
-    main_function_ended = False
-    
-    for line in lines:
-        stripped = line.strip()
-        
-        # If we see a standalone return 0; after the main function has ended, skip it
-        if main_function_ended and stripped == 'return 0;':
-            continue
-        
-        # If we see a standalone closing brace after main has ended, skip it
-        if main_function_ended and stripped == '}':
-            continue
+        # Once we're in code
+        if in_code:
+            # Skip lines that are clearly explanatory text (not C code)
+            # Common patterns: ends with colon, contains "A:", "Q:", etc., or is pure prose
+            if (stripped and not any(c in stripped for c in '{}();,=<>/*#') and
+                len(stripped) > 20 and not stripped.startswith('//')):
+                # This looks like explanatory text, skip it
+                continue
             
-        final_lines.append(line)
-        
-        # Mark when main function ends (closing brace at root level after return)
-        if 'return 0;' in line and not main_function_ended:
-            # Look ahead to see if next non-empty line is just a closing brace
-            for j in range(len(final_lines), len(lines)):
-                next_line = lines[j].strip()
-                if next_line == '}':
-                    main_function_ended = True
-                    final_lines.append(lines[j])  # Add the closing brace
-                    break
-                elif next_line:  # Non-empty, non-brace line
-                    break
-            if main_function_ended:
+            code_lines.append(line)
+            
+            # Track braces to know when functions end
+            brace_count += line.count('{') - line.count('}')
+            
+            # Mark when we've closed all braces (end of last function)
+            if in_code and brace_count == 0 and ('{' in ''.join(code_lines)):
+                main_ended = True
+            
+            # Stop after we've closed all braces and found a closing brace
+            if main_ended and brace_count == 0 and '}' in stripped:
                 break
     
-    # Final cleanup - ensure proper ending
-    cleaned_content = '\n'.join(final_lines).rstrip()
+    # Join the cleaned lines
+    cleaned_content = '\n'.join(code_lines).strip()
+    
+    # Final cleanup: remove any trailing explanatory text after the last }
+    # Find the last closing brace
+    last_brace = cleaned_content.rfind('}')
+    if last_brace != -1:
+        cleaned_content = cleaned_content[:last_brace + 1]
     
     # Write cleaned content
     with open(output_file, 'w') as f:

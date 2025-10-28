@@ -74,10 +74,27 @@ for model_name in MODELS:
     # ------------------- Batched generation -------------------
     for batch_start in range(0, min(MAX_PROMPTS, len(data)), BATCH_SIZE):
         batch_items = data[batch_start: batch_start + BATCH_SIZE]
-        batch_prompts = [
-            "Write C code (only code, no explanations or comments) to: " + (item.get("text") or item.get("prompt") or item.get("question") or item.get("instruction") or "")
-            for item in batch_items
-        ]
+        
+        # Create prompts that include the reference code as guidance
+        # This teaches the LLM to generate code similar to the reference (which may have bugs)
+        batch_prompts = []
+        for item in batch_items:
+            description = item.get("text") or item.get("prompt") or item.get("question") or item.get("instruction") or ""
+            reference_code = item.get("code") or ""
+            
+            # Convert reference code from the xlcost format to actual C code
+            # xlcost uses NEW_LINE for \n and STRNEWLINE for \\n in strings
+            reference_code = reference_code.replace(" NEW_LINE ", "\n").replace(" STRNEWLINE ", "\\n")
+            
+            # Build few-shot prompt: task description + reference + request to write similar code
+            prompt = f"""Task: {description}
+
+Reference implementation:
+{reference_code[:300]}
+
+Write similar C code (only code, no explanations):
+"""
+            batch_prompts.append(prompt)
 
         # Skip prompts that are already done
         skip_indices = [
@@ -106,7 +123,11 @@ for model_name in MODELS:
                 if (model_name, prompt_index) in done:
                     continue  # Already processed
 
-                code = tokenizer.decode(output_ids, skip_special_tokens=True)
+                # Extract only the newly generated tokens (skip the prompt tokens)
+                # The input prompt was prepended, so we skip those first tokens
+                prompt_token_length = inputs.input_ids.shape[1]
+                generated_token_ids = output_ids[prompt_token_length:]
+                code = tokenizer.decode(generated_token_ids, skip_special_tokens=True)
 
                 # Save generated code
                 code_file = "generated_code/generated_code.c"
@@ -138,8 +159,14 @@ for model_name in MODELS:
                         # Count .err files in klee_output
                         err_files = [f for f in os.listdir(klee_output_dir) if f.endswith(".err")]
                         semantic_err = len(err_files) > 0
-                    except Exception:
+                        if semantic_err:
+                            print(f"    ✓ Found {len(err_files)} KLEE error file(s) for prompt #{prompt_index}")
+                    except Exception as e:
+                        print(f"    ⚠️  Error checking KLEE output: {e}")
                         semantic_err = False
+                else:
+                    # If klee_output directory doesn't exist, no errors could have been found
+                    pass
 
                 # CodeQL check for SECURITY ERRORS (static analysis vulnerabilities)
                 # CodeQL detects: unsafe functions, missing validation, injection risks, etc.
